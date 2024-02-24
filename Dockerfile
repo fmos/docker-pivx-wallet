@@ -1,7 +1,5 @@
-# Using Alpine for streamlined size
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim as download
 
-# Environment variables (same as before)
 ENV PIVX_VERSION=5.6.1
 ENV PIVX_URL_PREFIX=https://github.com/PIVX-Project/PIVX/releases/download/v${PIVX_VERSION}
 ENV PIVX_FILENAME=pivx-${PIVX_VERSION}-x86_64-linux-gnu.tar.gz
@@ -9,16 +7,9 @@ ENV PIVX_TAR_URL=${PIVX_URL_PREFIX}/${PIVX_FILENAME}
 ENV PIVX_ASC_URL=${PIVX_URL_PREFIX}/SHA256SUMS.asc
 ENV GPGKEY=0xC1ABA64407731FD9
 
-ENV USER=pivx
-ENV GROUP=$USER
-ENV UID=10000
-ENV GID=10001
-
-# Installing dependencies and install PIVX
 RUN set -ex \
   && apt-get -q update \
   && apt-get -yq install gpg gpg-agent wget ca-certificates \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
   && \
   for server in \
     keyserver.ubuntu.com \
@@ -37,12 +28,20 @@ RUN set -ex \
   && tar xvzf /tmp/$PIVX_FILENAME \
   && rm /tmp/$PIVX_FILENAME \
   && ln -sf pivx-$PIVX_VERSION pivx \
-  && rm /opt/pivx/bin/pivx-qt /opt/pivx/bin/test_pivx \
-  && rm -rf /root/.gnupg/ \
   && cd /opt/pivx \
   && ./install-params.sh /opt/pivx/params \
-  && rm /opt/pivx/install-params.sh \
-  && apt-get -yq remove gpg gpg-agent wget ca-certificates \
+  && rm /opt/pivx/bin/pivx-qt /opt/pivx/bin/test_pivx /opt/pivx/install-params.sh
+
+FROM debian:bookworm-slim as run
+
+ENV USER=pivx
+ENV GROUP=$USER
+ENV UID=10000
+ENV GID=10001
+
+COPY --from=download /opt/pivx /opt/pivx
+
+RUN set -ex \
   && addgroup \
     --system \
     --gid "$GID" \
