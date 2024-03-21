@@ -1,11 +1,13 @@
 FROM debian:bookworm-slim as download
 
-ENV PIVX_VERSION=5.6.1
-ENV PIVX_URL_PREFIX=https://github.com/PIVX-Project/PIVX/releases/download/v${PIVX_VERSION}
-ENV PIVX_FILENAME=pivx-${PIVX_VERSION}-x86_64-linux-gnu.tar.gz
-ENV PIVX_TAR_URL=${PIVX_URL_PREFIX}/${PIVX_FILENAME}
-ENV PIVX_ASC_URL=${PIVX_URL_PREFIX}/SHA256SUMS.asc
-ENV GPGKEY=0xC1ABA64407731FD9
+ARG PIVX_VERSION
+
+ARG GPGKEY=0xC1ABA64407731FD9
+
+ARG PIVX_URL_PREFIX=https://github.com/PIVX-Project/PIVX/releases/download/v${PIVX_VERSION}
+ARG PIVX_FILENAME=pivx-${PIVX_VERSION}-x86_64-linux-gnu.tar.gz
+ARG PIVX_TAR_URL=${PIVX_URL_PREFIX}/${PIVX_FILENAME}
+ARG PIVX_ASC_URL=${PIVX_URL_PREFIX}/SHA256SUMS.asc
 
 RUN set -ex \
   && apt-get -q update \
@@ -36,8 +38,10 @@ FROM debian:bookworm-slim as run
 
 ENV USER=pivx
 ENV GROUP=$USER
-ENV UID=10000
-ENV GID=10001
+ENV ARGS=""
+
+ARG UID=10000
+ARG GID=10001
 
 COPY --from=download /opt/pivx /opt/pivx
 
@@ -50,19 +54,22 @@ RUN set -ex \
     --system \
     --uid "$UID" \
     --gid "$GID" \
-    --home /home/$USER \
+    --home /home/pivx \
     $USER
 
 USER $USER
 
 RUN set -ex \
-  && ln -s /opt/pivx/params /home/${USER}/.pivx-params \
-  && mkdir -p /home/${USER}/data/
+  && ln -s /opt/pivx/params /home/pivx/.pivx-params \
+  && mkdir -p /home/pivx/data/
 
-# Remaining Configurations (same as before)
-EXPOSE 51472
-VOLUME ["/home/$USER/data"]
-WORKDIR /home/$USER
+EXPOSE 51472/tcp
+EXPOSE 51472/udp
 
-ENTRYPOINT ["/opt/pivx/bin/pivxd", "-datadir=/home/$USER/data"]
+VOLUME ["/home/pivx/pivx.conf"]
+VOLUME ["/home/pivx/data"]
+
+WORKDIR /home/pivx
+
+ENTRYPOINT ["sh", "-c", "exec /opt/pivx/bin/pivxd -conf=/home/pivx/pivx.conf -datadir=/home/pivx/data $ARGS"]
 
